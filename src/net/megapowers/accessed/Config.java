@@ -9,7 +9,7 @@ import org.bukkit.util.config.Configuration;
 public class Config {
 
     public static final String PLUGIN_NAME = "Accessed";
-    public static final String CONFIG_LOCATION = "plugins" + File.separator + PLUGIN_NAME + "config.yml";
+    public static final String CONFIG_LOCATION = "plugins" + File.separator + PLUGIN_NAME + File.separator + "config.yml";
     private Configuration config;
     private Map<String, Object> configMap;
 
