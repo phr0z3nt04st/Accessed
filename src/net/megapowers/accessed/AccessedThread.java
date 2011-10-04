@@ -70,10 +70,10 @@ public class AccessedThread extends Thread {
 
                 while ((inputLine = reader.readLine()) != null) {
                     inputLineSplit = inputLine.split(" ");
-
+                    Callable c = null;
                     if (inputLineSplit[0].equalsIgnoreCase("reload")) {
 
-                        Future<String> returnFuture = server.getScheduler().callSyncMethod(plugin, new InputCallable<String, String>(inputLineSplit[1]) {
+                        c = new InputCallable<String, String>(inputLineSplit[1]) {
 
                             @Override
                             public String call() throws Exception {
@@ -86,14 +86,7 @@ public class AccessedThread extends Thread {
                                     return "failed";
                                 }
                             }
-                        });
-                        try {
-                            writer.println(returnFuture.get());
-                        } catch (InterruptedException ex) {
-                            Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
-                        } catch (ExecutionException ex) {
-                            Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
-                        }
+                        };
                     } else if (inputLineSplit[0].equalsIgnoreCase("reloadall")) {
                         if (reloadAll()) {
                             writer.println("done");
@@ -111,7 +104,7 @@ public class AccessedThread extends Thread {
                         } else {
                             Logger.getLogger("Minecraft").log(Level.INFO, "[Accessed] Dispatching command \"{0}\" to console.", commandToSend);
 
-                            Future<String> returnFuture = server.getScheduler().callSyncMethod(plugin, new InputCallable<String, String>(commandToSend) {
+                            c = new InputCallable<String, String>(commandToSend) {
 
                                 @Override
                                 public String call() throws Exception {
@@ -122,18 +115,11 @@ public class AccessedThread extends Thread {
                                         return "failed";
                                     }
                                 }
-                            });
-                            try {
-                                writer.println(returnFuture.get());
-                            } catch (InterruptedException ex) {
-                                Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
-                            } catch (ExecutionException ex) {
-                                Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
-                            }
+                            };
                         }
 
                     } else if (inputLineSplit[0].equalsIgnoreCase("list")) {
-                        Future<String> returnFuture = server.getScheduler().callSyncMethod(plugin, new Callable<String>() {
+                        c = new Callable<String>() {
 
                             @Override
                             public String call() throws Exception {
@@ -156,7 +142,12 @@ public class AccessedThread extends Thread {
                                 }
                                 return "";
                             }
-                        });
+                        };
+                    } else {
+                        writer.println("unknown");
+                    }
+                    if (c != null) {
+                        Future<String> returnFuture = server.getScheduler().callSyncMethod(plugin, c);
                         try {
                             writer.println(returnFuture.get());
                         } catch (InterruptedException ex) {
@@ -164,9 +155,6 @@ public class AccessedThread extends Thread {
                         } catch (ExecutionException ex) {
                             Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
                         }
-
-                    } else {
-                        writer.println("unknown");
                     }
                 }
             } catch (IOException e) {
