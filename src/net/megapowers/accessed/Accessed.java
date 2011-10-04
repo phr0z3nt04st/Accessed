@@ -45,7 +45,7 @@ public class Accessed extends JavaPlugin {
 
         //allowed-ip-port
         //formate: ip@port
-        List ips = (List) config.getConfig("ip-white-list");
+        List ips = (List) config.getConfig("allowed-ip-port");
         AccessedThread reloadedThread = null;
         for (Object ip : ips) {
             String raw[] = ((String) ip).split("@");

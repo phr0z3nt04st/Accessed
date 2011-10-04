@@ -7,11 +7,15 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.bukkit.Server;
 import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -50,13 +54,13 @@ public class AccessedThread extends Thread {
         while (running) {
             try {
                 clientSocket = serverSocket.accept();
-                
+
                 //TODO: make ip firewall system properly.
                 /*String hostAddress = clientSocket.getInetAddress().getHostAddress();
                 if (!hostAddress.equals("127.0.0.1") && !hostAddress.equals("0:0:0:0:0:0:0:1")) {
-                    Logger.getLogger("Minecraft").log(Level.INFO, "[Accessed] {0} tried accessing, but was denied.", hostAddress);
-                    clientSocket.close();
-                    continue;
+                Logger.getLogger("Minecraft").log(Level.INFO, "[Accessed] {0} tried accessing, but was denied.", hostAddress);
+                clientSocket.close();
+                continue;
                 }*/
                 reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 writer = new PrintWriter(clientSocket.getOutputStream(), true);
@@ -69,13 +73,27 @@ public class AccessedThread extends Thread {
                     inputLineSplit = inputLine.split(" ");
 
                     if (inputLineSplit[0].equalsIgnoreCase("reload")) {
+
+                        Future<String> returnFuture = server.getScheduler().callSyncMethod(plugin, new InputCallable<String, String>(inputLineSplit[1]) {
+
+                            @Override
+                            public String call() throws Exception {
+                                try {
+                                    Plugin pluginToReload = pluginManager.getPlugin(input);
+                                    pluginManager.disablePlugin(pluginToReload);
+                                    pluginManager.enablePlugin(pluginToReload);
+                                    return "done";
+                                } catch (Exception ex) {
+                                    return "failed";
+                                }
+                            }
+                        });
                         try {
-                            Plugin pluginToReload = pluginManager.getPlugin(inputLineSplit[1]);
-                            pluginManager.disablePlugin(pluginToReload);
-                            pluginManager.enablePlugin(pluginToReload);
-                            writer.println("done");
-                        } catch (Exception ex) {
-                            writer.println("failed");
+                            writer.println(returnFuture.get());
+                        } catch (InterruptedException ex) {
+                            Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
+                        } catch (ExecutionException ex) {
+                            Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
                         }
                     } else if (inputLineSplit[0].equalsIgnoreCase("reloadall")) {
                         if (reloadAll()) {
@@ -84,22 +102,70 @@ public class AccessedThread extends Thread {
                             writer.println("failed");
                         }
                     } else if (inputLineSplit[0].equalsIgnoreCase("command")) {
-                        try {
-                            String commandToSend = inputLine.substring(inputLineSplit[0].length() + 1);
-                            if (commandToSend.equals("reload")) {
-                                if (reloadAll()) {
-                                    writer.println("done");
-                                } else {
-                                    writer.println("failed");
-                                }
-                            } else {
-                                Logger.getLogger("Minecraft").log(Level.INFO, "[Accessed] Dispatching command \"{0}\" to console.", commandToSend);
-                                server.dispatchCommand(server.getConsoleSender(), commandToSend);
+                        String commandToSend = inputLine.substring(inputLineSplit[0].length() + 1);
+                        if (commandToSend.equals("reload")) {
+                            if (reloadAll()) {
                                 writer.println("done");
+                            } else {
+                                writer.println("failed");
                             }
-                        } catch (Exception ex) {
-                            writer.println("failed");
+                        } else {
+                            Logger.getLogger("Minecraft").log(Level.INFO, "[Accessed] Dispatching command \"{0}\" to console.", commandToSend);
+
+                            Future<String> returnFuture = server.getScheduler().callSyncMethod(plugin, new InputCallable<String, String>(commandToSend) {
+
+                                @Override
+                                public String call() throws Exception {
+                                    try {
+                                        server.dispatchCommand(server.getConsoleSender(), input);
+                                        return "done";
+                                    } catch (Exception ex) {
+                                        return "failed";
+                                    }
+                                }
+                            });
+                            try {
+                                writer.println(returnFuture.get());
+                            } catch (InterruptedException ex) {
+                                Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
+                            } catch (ExecutionException ex) {
+                                Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
+                            }
                         }
+
+                    } else if (inputLineSplit[0].equalsIgnoreCase("list")) {
+                        Future<String> returnFuture = server.getScheduler().callSyncMethod(plugin, new Callable<String>() {
+
+                            @Override
+                            public String call() throws Exception {
+                                try {
+                                    Player[] in = server.getOnlinePlayers();
+                                    String out = new String();
+                                    int max = in.length;
+                                    //for each player
+                                    for (int i = 0; i < max; i++) {
+                                        //append name to output
+                                        out += in[i].getName();
+                                        //formatting control
+                                        if (i < max - 1) {
+                                            out += ", ";
+                                        }
+                                    }
+                                    //send output
+                                    return out;
+                                } catch (Exception ex) {
+                                }
+                                return "";
+                            }
+                        });
+                        try {
+                            writer.println(returnFuture.get());
+                        } catch (InterruptedException ex) {
+                            Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
+                        } catch (ExecutionException ex) {
+                            Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+
                     } else {
                         writer.println("unknown");
                     }
@@ -116,22 +182,39 @@ public class AccessedThread extends Thread {
     }
 
     boolean reloadAll() {
+
+        Future<Boolean> returnFuture = server.getScheduler().callSyncMethod(plugin, new Callable<Boolean>() {
+
+            @Override
+            public Boolean call() throws Exception {
+                try {
+                    for (Plugin plugin : pluginManager.getPlugins()) {
+                        if (plugin.getDescription().getName().equals("Accessed")) {
+                            continue;
+                        }
+                        pluginManager.disablePlugin(plugin);
+                    }
+                    for (Plugin plugin : pluginManager.getPlugins()) {
+                        if (plugin.getDescription().getName().equals("Accessed")) {
+                            continue;
+                        }
+                        pluginManager.enablePlugin(plugin);
+                    }
+                } catch (Exception ex) {
+                    return false;
+                }
+                return true;
+            }
+        });
         try {
-            for (Plugin plugin : pluginManager.getPlugins()) {
-                if (plugin.getDescription().getName().equals("Accessed")) {
-                    continue;
-                }
-                pluginManager.disablePlugin(plugin);
-            }
-            for (Plugin plugin : pluginManager.getPlugins()) {
-                if (plugin.getDescription().getName().equals("Accessed")) {
-                    continue;
-                }
-                pluginManager.enablePlugin(plugin);
-            }
-        } catch (Exception ex) {
-            return false;
+            return returnFuture.get();
+        } catch (InterruptedException ex) {
+            Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ExecutionException ex) {
+            Logger.getLogger(AccessedThread.class.getName()).log(Level.SEVERE, null, ex);
         }
-        return true;
+        //everything failed.
+        return false;
+
     }
 }
