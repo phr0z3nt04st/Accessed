@@ -33,7 +33,18 @@ public class Accessed extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        try {
+            reloadedThreads.add(new AccessedThread(createServerSocket(InetAddress.getLocalHost(), 7040), this));
 
+            Logger.getLogger("Minecraft").log(Level.INFO, "[Accessed] Enabled and listening on port {0}@7040", InetAddress.getLocalHost().getHostAddress());
+        } catch (UnknownHostException ex) {
+            Logger.getLogger("Minecraft").log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger("Minecraft").log(Level.SEVERE, null, ex);
+        }
+
+        //allowed-ip-port
+        //formate: ip@port
         List ips = (List) config.getConfig("ip-white-list");
         AccessedThread reloadedThread = null;
         for (Object ip : ips) {
@@ -51,16 +62,6 @@ public class Accessed extends JavaPlugin {
             }
             reloadedThreads.add(reloadedThread);
             Logger.getLogger("Minecraft").log(Level.INFO, "[Accessed] Enabled and listening on {0}@{1}", new Object[]{raw[0], port});
-        }
-
-        try {
-            reloadedThreads.add(new AccessedThread(createServerSocket(InetAddress.getLocalHost(), 7040), this));
-
-            Logger.getLogger("Minecraft").log(Level.INFO, "[Accessed] Enabled and listening on port {0}@7040", InetAddress.getLocalHost().getHostAddress());
-        } catch (UnknownHostException ex) {
-            Logger.getLogger("Minecraft").log(Level.SEVERE, null, ex);
-        } catch (IOException ex) {
-            Logger.getLogger("Minecraft").log(Level.SEVERE, null, ex);
         }
     }
 
