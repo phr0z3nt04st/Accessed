@@ -21,6 +21,7 @@ public class Config {
 
     public final void reload() {
         config.load();
+        configMap = config.getAll();
     }
 
     public Object getConfig(String key) {
@@ -30,7 +31,7 @@ public class Config {
         return null;
     }
 
-    public ArrayList getConfigs(String[] key) {
+    public ArrayList getConfig(String[] key) {
         ArrayList out = new ArrayList();
         for (String k : key) {
             Object value = getConfig(k);
